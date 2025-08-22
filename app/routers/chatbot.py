@@ -1,20 +1,23 @@
-from fastapi import APIRouter, Depends, UploadFile, Form, File
+from fastapi import APIRouter, UploadFile, File, Form
 from typing import Optional
-from app.schemas.chatbot import ChatbotResponse
 from app.services.chatbot_service import get_chatbot_answer
-from app.core.security import get_current_user
 
-router = APIRouter(prefix="/chatbot", tags=["chatbot"])
+router = APIRouter()
 
-@router.post("/", response_model=ChatbotResponse)
-async def chatbot(
+@router.post("/chatbot/")
+async def chatbot_endpoint(
     query: Optional[str] = Form(None),
-    image: Optional[UploadFile] = File(None),
-    user=Depends(get_current_user)
+    file: Optional[UploadFile] = File(None)
 ):
-    try:
-        file_bytes = image.file if image else None
-        answer = get_chatbot_answer(query or "", file_bytes, user_email=user.sub)
-        return ChatbotResponse(answer=answer)
-    except Exception as e:
-        return ChatbotResponse(answer=f"오류 발생: {e}")
+    # 파일이 선택되지 않았거나 빈 파일("")이면 None 처리
+    if file and getattr(file, "filename", "") == "":
+        file = None
+
+    # 디버깅용 로그
+    print("endpoint query:", query)
+    print("endpoint file 타입:", type(file), "값:", file)
+
+    answer = await get_chatbot_answer(query=query, file=file)
+
+    print("최종 답변:", answer)
+    return {"answer": answer}

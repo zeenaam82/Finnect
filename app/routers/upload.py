@@ -1,43 +1,47 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from app.core.security import get_current_user
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.data_service import predict_image, process_csv
 from app.services.csv_convert import convert_xlsx_to_csv
 from pydantic import BaseModel
 from io import BytesIO
-from app.integrations.django_bridge import get_upload_record_model, get_or_create_user_by_username
+from app.integrations.django_bridge import get_upload_record_model
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 UploadRecord = get_upload_record_model()
 
 class ImageUploadResponse(BaseModel):
-    user: str
-    prediction: str
-    confidence: float
+    filename: str
+    uploaded_at: str
+    file_size: int
+    prediction: dict | None = None  # 예측 결과 optional
 
 class CSVUploadResponse(BaseModel):
-    user: str
-    statistics: dict
+    filename: str
+    uploaded_at: str
+    file_size: int
+    statistics: dict | None = None
 
 @router.post("/image", response_model=ImageUploadResponse)
-def upload_image(file: UploadFile = File(...), user=Depends(get_current_user)):
+def upload_image(file: UploadFile = File(...)):
     try:
-        image_bytes = file.file.read()
-        result = predict_image(BytesIO(image_bytes))
+        file_bytes = file.file.read()
+        result = predict_image(BytesIO(file_bytes))
 
-        user_obj = get_or_create_user_by_username(user.sub)
-
-        UploadRecord.objects.create(
-            user=user_obj,
-            file_type="image",
-            file_name=file.filename,
-            prediction=result
+        record = UploadRecord.objects.create(
+            filename=file.filename,
+            file_size=len(file_bytes)
         )
-        return {"user": user.sub, **result}
+
+        return {
+            "filename": record.filename,
+            "uploaded_at": record.uploaded_at.isoformat(),
+            "file_size": record.file_size,
+            "prediction": result
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/csv", response_model=CSVUploadResponse)
-def upload_csv(file: UploadFile = File(...), user=Depends(get_current_user)):
+def upload_csv(file: UploadFile = File(...)):
     try:
         filename = file.filename.lower()
         file_bytes = file.file.read()
@@ -53,14 +57,16 @@ def upload_csv(file: UploadFile = File(...), user=Depends(get_current_user)):
         else:
             raise HTTPException(status_code=400, detail="지원하지 않는 파일 형식")
 
-        user_obj = get_or_create_user_by_username(user.sub)
-
-        UploadRecord.objects.create(
-            user=user_obj,
-            file_type="csv",
-            file_name=file.filename,
-            statistics=stats
+        record = UploadRecord.objects.create(
+            filename=file.filename,
+            file_size=len(file_bytes)
         )
-        return {"user": user.sub, "statistics": stats}
+
+        return {
+            "filename": record.filename,
+            "uploaded_at": record.uploaded_at.isoformat(),
+            "file_size": record.file_size,
+            "statistics": stats
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
