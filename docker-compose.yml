@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    container_name: finnect_web
+    command: python -m app.main
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:15
+    container_name: finnect_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-finnect_db}
+      POSTGRES_USER: ${POSTGRES_USER:-finnect_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finnect_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: finnect_redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+
+volumes:
+  postgres_data:

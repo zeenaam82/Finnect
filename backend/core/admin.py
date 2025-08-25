@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UploadRecord, ChatRecord, FAQ
+from .models import UploadRecord, ChatRecord, FAQ, Intent
 
 
 @admin.register(UploadRecord)
@@ -18,6 +18,12 @@ class ChatRecordAdmin(admin.ModelAdmin):
 
 @admin.register(FAQ)
 class FAQAdmin(admin.ModelAdmin):
-    list_display = ("id", "question", "answer", "created_at")
-    list_filter = ("created_at",)
+    list_display = ("id", "question", "answer", "active")
+    list_filter = ("active",)
     search_fields = ("question", "answer")
+
+@admin.register(Intent)
+class IntentAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "response", "active")
+    list_filter = ("active",)
+    search_fields = ("name", "keywords", "response")

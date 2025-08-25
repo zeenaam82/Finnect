@@ -4,27 +4,62 @@ from PIL import Image
 from fastapi import HTTPException
 from io import BytesIO
 import os
+import logging
+from typing import Optional
 import numpy as np
 from app.core.metrics import METRICS
-import onnxruntime as ort
 
-# -----------------------------
-# ONNX 모델 초기화 (최신 파일 자동 선택)
-# -----------------------------
+# ONNX 모델 초기화 
+# 최신 파일 자동 선택
+logger = logging.getLogger(__name__)
+
+try:
+    import onnxruntime as ort
+except Exception:
+    ort = None
+
 BASE_MODEL_DIR = os.path.abspath("app/data")
-onnx_files = [f for f in os.listdir(BASE_MODEL_DIR) if f.endswith(".onnx")]
-if not onnx_files:
-    raise FileNotFoundError("ONNX 모델 파일이 존재하지 않습니다.")
+ONNX_MODEL_PATH: Optional[str] = None
+session = None
 
-# 최신 생성된 ONNX 모델 선택
-ONNX_MODEL_PATH = os.path.join(BASE_MODEL_DIR, max(onnx_files, key=lambda f: os.path.getctime(os.path.join(BASE_MODEL_DIR, f))))
-print(f"사용할 ONNX 모델: {ONNX_MODEL_PATH}")
+def initialize_onnx(model_dir: Optional[str] = None):
+    """
+    앱 시작 시 호출하여 ONNX 세션을 안전하게 초기화합니다.
+    (이미지: model_dir 지정 가능, 기본은 BASE_MODEL_DIR)
+    """
+    global ONNX_MODEL_PATH, session
+    dir_to_check = model_dir or BASE_MODEL_DIR
 
-session = ort.InferenceSession(ONNX_MODEL_PATH)
+    if ort is None:
+        logger.warning("onnxruntime 패키지를 찾을 수 없습니다. 이미지 추론 비활성화.")
+        session = None
+        return
 
-# -----------------------------
+    try:
+        if not os.path.isdir(dir_to_check):
+            logger.warning(f"모델 디렉토리가 없습니다: {dir_to_check}")
+            session = None
+            return
+
+        onnx_files = [f for f in os.listdir(dir_to_check) if f.endswith(".onnx")]
+        if not onnx_files:
+            logger.warning("ONNX 모델 파일이 존재하지 않습니다. 추론 엔드포인트는 503을 반환합니다.")
+            session = None
+            return
+
+        latest = max(onnx_files, key=lambda f: os.path.getctime(os.path.join(dir_to_check, f)))
+        ONNX_MODEL_PATH = os.path.join(dir_to_check, latest)
+        try:
+            session = ort.InferenceSession(ONNX_MODEL_PATH)
+            logger.info(f"사용할 ONNX 모델: {ONNX_MODEL_PATH}")
+        except Exception:
+            logger.exception("ONNX InferenceSession 생성 실패 — 추론 비활성화")
+            session = None
+    except Exception:
+        logger.exception("ONNX 초기화 중 예기치 않은 오류")
+        session = None
+
 # 이미지 전처리 및 추론
-# -----------------------------
 def preprocess_image(file: BytesIO, target_size=(224, 224)) -> np.ndarray:
     """
     이미지 전처리: RGB 변환, resize, 정규화, 배치 차원 추가
@@ -53,9 +88,8 @@ def predict_image(file: BytesIO) -> dict:
     except Exception as e:
         return {"prediction": "error", "confidence": 0.0, "error": str(e)}
 
-# -----------------------------
-# CSV 통계 처리 + 최신 결과 캐싱
-# -----------------------------
+# CSV 통계 처리 
+# 최신 결과 캐싱
 _latest_csv_stats = {}
 
 def process_csv(file: BytesIO) -> dict:

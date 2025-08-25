@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h2>로그인</h2>
+    <form id="login-form">
+        <input type="text" id="username" placeholder="아이디" required />
+        <input type="password" id="password" placeholder="비밀번호" required />
+        <button type="submit">로그인</button>
+    </form>
+
+    <h2>불량률 차트</h2>
+    <div id="plotly-defect" style="width:600px;height:400px;"></div>
+
+    <script>
+        const form = document.getElementById("login-form");
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            // OAuth2PasswordRequestForm은 x-www-form-urlencoded로 보내야 함
+            const formData = new URLSearchParams();
+            formData.append("username", username);
+            formData.append("password", password);
+
+            try {
+                const response = await fetch("/auth/token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    alert("로그인 실패: 아이디/비밀번호 확인");
+                    return;
+                }
+
+                const data = await response.json();
+                const token = data.access_token;
+                localStorage.setItem("jwt_token", token);
+                alert("로그인 성공! 차트를 불러옵니다.");
+
+                // 로그인 성공 후 차트 fetch
+                fetchChart();
+
+            } catch (err) {
+                console.error("로그인 에러:", err);
+            }
+        });
+
+        async function fetchChart() {
+            const token = localStorage.getItem("jwt_token");
+            if (!token) {
+                alert("JWT가 없습니다. 로그인 후 새로고침하세요.");
+                return;
+            }
+
+            try {
+                const response = await fetch("/admin/plotly/defect_distribution", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    console.error("차트 fetch 실패", response.status);
+                    return;
+                }
+
+                const data = await response.json();
+                Plotly.newPlot('plotly-defect', data.data, data.layout);
+
+            } catch (err) {
+                console.error("차트 fetch 에러:", err);
+            }
+        }
+
+        // 페이지 로드 시 JWT가 있으면 차트 fetch
+        if (localStorage.getItem("jwt_token")) {
+            fetchChart();
+        }
+    </script>
+</body>
+</html>
