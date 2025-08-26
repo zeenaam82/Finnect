@@ -32,7 +32,10 @@ static/
 staticfiles/
 
 # FastAPI / 데이터 파일
-app/data/
+/data/*
+!/data/.gitkeep
+app/data/*
+!app/data/.gitkeep
 mvtec_ad/
 *.csv
 *.xlsx
