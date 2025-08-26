@@ -4,7 +4,6 @@ services:
   web:
     build: .
     container_name: finnect_web
-    command: python -m app.main
     volumes:
       - .:/usr/src/app
     ports:
