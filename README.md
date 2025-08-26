@@ -40,11 +40,11 @@ FastAPI는 API 서버 및 JWT 인증을 담당하며, Django는 업로드 기록
 
 1. **MVTec AD (Anomaly Detection)**
    - 단일 이미지 불량 판별용
-   - 링크: [MVTec AD Dataset](https://www.mvtec.com/company/research/datasets/mvtec-ad/)
+   - 링크: [MVTec AD Dataset](https://www.mvtec.com/downloads)
    
 2. **Kaggle Customer Segmentation Dataset**
    - 고객 세분화 및 CSV 통계 예제용
-   - 링크: [Customer Segmentation Dataset](https://www.kaggle.com/datasets/sid321axn/customer-segmentation)
+   - 링크: [Customer Segmentation Dataset](https://www.kaggle.com/datasets/yasserh/customer-segmentation-dataset)
 
 > 데이터셋은 `data/` 폴더에 위치시켜야 합니다.
 
