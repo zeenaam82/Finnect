@@ -55,7 +55,7 @@ FastAPI는 API 서버 및 JWT 인증을 담당하며, Django는 업로드 기록
 1. Python 3.11 이상 권장
 2. 가상환경 생성
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/Scripts/activate  # Windows
 source venv/bin/activate     # Linux / Mac
 ```
