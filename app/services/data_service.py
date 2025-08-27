@@ -1,21 +1,24 @@
 import tempfile
+import dask
 import dask.dataframe as dd
+import pandas as pd
+import numpy as np
+from io import BytesIO
 from PIL import Image
 from fastapi import HTTPException
-from io import BytesIO
 import os
 import logging
 from typing import Optional
-import numpy as np
 from app.core.metrics import METRICS
 
-# ONNX 모델 초기화 
-# 최신 파일 자동 선택
 logger = logging.getLogger(__name__)
 
+# ----------------------------
+# ONNX 초기화
+# ----------------------------
 try:
     import onnxruntime as ort
-except Exception:
+except ImportError:
     ort = None
 
 BASE_MODEL_DIR = os.path.abspath("app/data")
@@ -23,79 +26,67 @@ ONNX_MODEL_PATH: Optional[str] = None
 session = None
 
 def initialize_onnx(model_dir: Optional[str] = None):
-    """
-    앱 시작 시 호출하여 ONNX 세션을 안전하게 초기화합니다.
-    (이미지: model_dir 지정 가능, 기본은 BASE_MODEL_DIR)
-    """
     global ONNX_MODEL_PATH, session
     dir_to_check = model_dir or BASE_MODEL_DIR
 
     if ort is None:
-        logger.warning("onnxruntime 패키지를 찾을 수 없습니다. 이미지 추론 비활성화.")
+        logger.warning("onnxruntime 패키지 없음, 이미지 추론 비활성화")
         session = None
         return
 
+    if not os.path.isdir(dir_to_check):
+        logger.warning(f"모델 디렉토리 없음: {dir_to_check}")
+        session = None
+        return
+
+    onnx_files = [f for f in os.listdir(dir_to_check) if f.endswith(".onnx")]
+    if not onnx_files:
+        logger.warning("ONNX 모델 파일 없음, 추론 비활성화")
+        session = None
+        return
+
+    latest = max(onnx_files, key=lambda f: os.path.getctime(os.path.join(dir_to_check, f)))
+    ONNX_MODEL_PATH = os.path.join(dir_to_check, latest)
     try:
-        if not os.path.isdir(dir_to_check):
-            logger.warning(f"모델 디렉토리가 없습니다: {dir_to_check}")
-            session = None
-            return
-
-        onnx_files = [f for f in os.listdir(dir_to_check) if f.endswith(".onnx")]
-        if not onnx_files:
-            logger.warning("ONNX 모델 파일이 존재하지 않습니다. 추론 엔드포인트는 503을 반환합니다.")
-            session = None
-            return
-
-        latest = max(onnx_files, key=lambda f: os.path.getctime(os.path.join(dir_to_check, f)))
-        ONNX_MODEL_PATH = os.path.join(dir_to_check, latest)
-        try:
-            session = ort.InferenceSession(ONNX_MODEL_PATH)
-            logger.info(f"사용할 ONNX 모델: {ONNX_MODEL_PATH}")
-        except Exception:
-            logger.exception("ONNX InferenceSession 생성 실패 — 추론 비활성화")
-            session = None
+        session = ort.InferenceSession(ONNX_MODEL_PATH)
+        logger.info(f"사용 ONNX 모델: {ONNX_MODEL_PATH}")
     except Exception:
-        logger.exception("ONNX 초기화 중 예기치 않은 오류")
+        logger.exception("ONNX InferenceSession 생성 실패")
         session = None
 
-# 이미지 전처리 및 추론
+# ----------------------------
+# 이미지 전처리 및 예측
+# ----------------------------
 def preprocess_image(file: BytesIO, target_size=(224, 224)) -> np.ndarray:
-    """
-    이미지 전처리: RGB 변환, resize, 정규화, 배치 차원 추가
-    """
     try:
-        image = Image.open(file).convert("RGB")
-        image = image.resize(target_size)
-        img_array = np.array(image).astype(np.float32) / 255.0
-        img_array = np.expand_dims(img_array, axis=0)
-        return img_array
+        img = Image.open(file).convert("RGB").resize(target_size)
+        arr = np.array(img).astype(np.float32) / 255.0
+        arr = np.expand_dims(arr, axis=0)
+        return arr
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image file: {e}")
 
 def predict_image(file: BytesIO) -> dict:
-    """
-    ONNX 모델 추론
-    """
+    if session is None:
+        return {"prediction": "error", "confidence": 0.0, "error": "ONNX session not initialized"}
+
     try:
-        input_array = preprocess_image(file)
+        arr = preprocess_image(file)
         input_name = session.get_inputs()[0].name
-        pred = session.run(None, {input_name: input_array})[0]
-        label_idx = int(np.argmax(pred))
+        pred = session.run(None, {input_name: arr})[0]
+        idx = int(np.argmax(pred))
         confidence = float(np.max(pred))
-        label_map = {0: "normal", 1: "defect"}  # TODO: 실제 MVTec AD 라벨 매핑
-        return {"prediction": label_map.get(label_idx, "unknown"), "confidence": confidence}
+        label_map = {0: "normal", 1: "defect"}  # 실제 라벨 필요 시 수정
+        return {"prediction": label_map.get(idx, "unknown"), "confidence": confidence}
     except Exception as e:
         return {"prediction": "error", "confidence": 0.0, "error": str(e)}
 
-# CSV 통계 처리 
-# 최신 결과 캐싱
+# ----------------------------
+# CSV 처리
+# ----------------------------
 _latest_csv_stats = {}
 
 def process_csv(file: BytesIO) -> dict:
-    """
-    CSV 업로드 처리 및 METRICS 계산
-    """
     global _latest_csv_stats
     tmp = None
     try:
@@ -104,18 +95,13 @@ def process_csv(file: BytesIO) -> dict:
         tmp.flush()
         tmp.close()
 
-        df = dd.read_csv(
-            tmp.name,
-            encoding="ISO-8859-1",
-            on_bad_lines="skip",
-            blocksize="16MB",
-            assume_missing=True,
-            dtype={"InvoiceNo": "object"}
-        )
+        df = pd.read_csv(tmp.name, encoding="ISO-8859-1", on_bad_lines="skip", dtype={"InvoiceNo": "object"})
 
+        # METRICS 기반 계산
         metrics = {k: f(df) for k, f in METRICS.items()}
+        # Dask compute
         keys, tasks = zip(*[(k, v) for k, v in metrics.items() if v is not None])
-        results = dd.compute(*tasks)
+        results = dask.compute(*tasks)
 
         stats = {}
         for k, v in zip(keys, results):
@@ -126,20 +112,14 @@ def process_csv(file: BytesIO) -> dict:
             else:
                 stats[k] = v
 
-        # 최신 CSV 결과 저장 (챗봇에서 참조 가능)
         _latest_csv_stats = stats
         return stats
-
     except Exception as e:
-        print("Upload CSV error:", e)
+        logger.exception("Upload CSV error")
         raise HTTPException(status_code=500, detail="Internal server error")
     finally:
         if tmp:
             os.unlink(tmp.name)
 
 def get_latest_csv_stats() -> dict:
-    """
-    챗봇이 호출할 최신 CSV 통계 반환
-    """
-    global _latest_csv_stats
     return _latest_csv_stats if _latest_csv_stats else {}

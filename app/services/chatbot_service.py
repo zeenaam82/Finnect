@@ -1,5 +1,6 @@
 import logging
 from typing import Optional, Dict, Any
+import json
 
 from asgiref.sync import sync_to_async
 
@@ -40,7 +41,10 @@ async def _build_context() -> Dict[str, Any]:
         lambda: UploadRecord.objects.filter(statistics__isnull=False).order_by("-uploaded_at").first()
     )()
     if latest_csv and latest_csv.statistics:
-        ctx.update(latest_csv.statistics)
+        stats_dict = latest_csv.statistics
+        if isinstance(stats_dict, str):
+            stats_dict = json.loads(stats_dict)
+        ctx.update(stats_dict)
 
     # 최신 이미지 예측
     latest_img = await sync_to_async(
@@ -91,42 +95,34 @@ async def get_chatbot_answer(query: Optional[str] = None) -> str:
     if not query_clean:
         return "질문 내용을 입력해주세요."
 
-    # Redis 캐시 확인
     cached = await _cache_get(query_clean)
     if cached:
         return cached
 
-    # 최신 CSV 통계 조회
-    latest_csv = await sync_to_async(
-        lambda: UploadRecord.objects.filter(statistics__isnull=False).order_by("-uploaded_at").first()
-    )()
-    if latest_csv and latest_csv.statistics:
-        for k, v in latest_csv.statistics.items():
-            if k.lower() in query_clean.lower():
-                ans = f"{k}는 현재 {v}입니다."
-                await _cache_set(query_clean, ans)
-                return ans
+    # 통합된 context 가져오기
+    ctx = await _build_context()
 
-    # 최신 이미지 결과 조회
-    latest_img = await sync_to_async(
-        lambda: UploadRecord.objects.filter(prediction__isnull=False).order_by("-uploaded_at").first()
-    )()
-    if latest_img:
-        for kw in ["이미지", "불량", "양품", "상태", "defect", "normal"]:
-            if kw in query_clean.lower():
-                ans = f"최근 업로드된 이미지 결과: {latest_img.prediction} (신뢰도 {latest_img.confidence:.2f})"
-                await _cache_set(query_clean, ans)
-                return ans
+    # CSV 통계 매칭
+    for k, v in ctx.items():
+        if k.lower() in query_clean.lower() and k not in ["prediction", "confidence"]:
+            ans = f"{k}는 현재 {v}입니다."
+            await _cache_set(query_clean, ans)
+            return ans
+
+    # 이미지 결과 매칭
+    if any(kw in query_clean.lower() for kw in ["이미지", "불량", "양품", "상태", "defect", "normal"]):
+        if "prediction" in ctx:
+            ans = f"최근 업로드된 이미지 결과: {ctx['prediction']} (신뢰도 {ctx.get('confidence', 0):.2f})"
+            await _cache_set(query_clean, ans)
+            return ans
 
     # Intent / FAQ
     intent_template = await get_intent_response_async(query_clean)
     if intent_template:
-        ctx = await _build_context()
         rendered = _render_template(intent_template, ctx)
         await _cache_set(query_clean, rendered)
         return rendered
 
-    # FAQ fallback
     faqs = await get_faqs_async(limit=10)
     for faq in faqs:
         if query_clean.lower() in faq.question.lower():
@@ -134,3 +130,4 @@ async def get_chatbot_answer(query: Optional[str] = None) -> str:
             return faq.answer
 
     return "관련된 데이터가 없습니다."
+

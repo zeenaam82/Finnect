@@ -85,11 +85,14 @@ async def upload_csv(file: UploadFile = File(...)):
         else:
             raise HTTPException(status_code=400, detail="지원하지 않는 파일 형식")
 
+        # JSON 직렬화
+        stats_json = json.dumps(stats)
+
         # sync_to_async로 ORM 호출
         record = await sync_to_async(UploadRecord.objects.create)(
             filename=file.filename,
             file_size=len(file_bytes),
-            statistics=stats
+            statistics=stats_json
         )
 
         # Redis에 컬럼명 기준으로 저장 (1시간)

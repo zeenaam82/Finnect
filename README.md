@@ -59,10 +59,9 @@ python3 -m venv venv
 source venv/Scripts/activate  # Windows
 source venv/bin/activate     # Linux / Mac
 ```
-3. 의존성 설치
+3. 의존성 설치 및 실행
 ```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+docker build -t finnect .        # Docker 이미지 빌드
 ```
 4. Django 마이그레이션
 ```bash
@@ -74,30 +73,53 @@ python manage.py runserver 8001
 5. 환경 변수 설정
 .env 파일 생성 후 필수 값 입력:
 ```bash
+# JWT / FastAPI
 SECRET_KEY=your_jwt_secret
-DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/dbname
-OPENAI_API_KEY=your_openai_key
+# PostgreSQL
 POSTGRES_DB=finnect_db
 POSTGRES_USER=finnect_user
 POSTGRES_PASSWORD=finnect_pass
-POSTGRES_HOST=localhost
+POSTGRES_HOST=127.0.0.1
 POSTGRES_PORT=5432
+DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/dbname
+# Django
 DJANGO_SECRET_KEY=django_secret
+# OpenAI
+OPENAI_API_KEY=your_openai_key
 ```
-6. AI 모델 학습 및 ONNX 변환 및 인텐트 초기화
+6. AI 모델 학습 및 ONNX 변환, 인텐트 초기화, 테스트 유저 추가
 ```bash
 cd scripts
 python train_and_convert.py
 python init_intents.py
 python create_test_users.py
 ```
-7. FastAPI 실행
+7. 서버 실행
 ```bash
-python -m main:app
+docker-compose up --build  # 컨테이너 실행
 ```
 
 ---
 
+## 챗봇 API 인텐트 매핑
+챗봇에서 사용자가 입력하는 자연어 질문과 내부 데이터 필드 매핑:
+Image
+| 사용자 입력 | 내부 필드 |
+|------------|-----------|
+| 이미지상태 | prediction |
+| 신뢰도     | confidence |
+
+CSV
+| 사용자 입력 | 내부 필드 |
+|------------|-----------|
+| 총매출     | total_revenue |
+| 고객수     | num_customers |
+| 인보이스수 | num_invoices |
+| 총수량     | total_quantity |
+
+---
+
 ## 참고
-FastAPI Swagger: http://127.0.0.1:8000/docs  
-Django Admin: http://127.0.0.1:8001/admin
+> FastAPI Swagger: http://13.124.90.238:8000/docs
+> Django Admin: http://13.124.90.238:8001/admin (메모리 부족으로 EC2 무료 프리티어 환경에서는 실행되지 않음)
+> 현재 서비스는 무료 프리티어 환경에서 운영 중이며, 다수 동시 접속 또는 대용량 요청 시 지연이나 오류가 발생할 수 있습니다.

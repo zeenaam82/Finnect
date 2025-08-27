@@ -5,14 +5,29 @@ services:
     build: .
     container_name: finnect_web
     volumes:
-      - .:/usr/src/app
+      - ./tmp:/data/tmp
     ports:
-      - "8000:8000"
+      - "8000:8000" 
     env_file:
       - .env
     depends_on:
       - db
       - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers
+
+  # django:
+  #   build: .
+  #   container_name: finnect_django
+  #   volumes:
+  #     - ./backend:/app
+  #   ports:
+  #     - "8001:8000"
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     - db
+  #     - redis
+  #   entrypoint: ["sh", "/app/entrypoint.sh"]
 
   db:
     image: postgres:15

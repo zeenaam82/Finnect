@@ -10,13 +10,10 @@ WORKDIR /app
 
 # 의존성 복사 및 설치
 COPY requirements.txt .
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --upgrade pip
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # 프로젝트 전체 복사
 COPY ./app ./app
 COPY ./backend ./backend
 COPY ./scripts ./scripts
-
-# FastAPI 실행
-CMD ["python", "-m", "app.main"]

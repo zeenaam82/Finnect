@@ -13,7 +13,6 @@ async def lifespan(app: FastAPI):
     load_dotenv()
     initialize_onnx()
     yield
-    # 앱 종료 시 필요한 리소스 정리 가능
 
 app = FastAPI(
     title="Finnect AI API",
@@ -21,8 +20,10 @@ app = FastAPI(
     version="1.0.0",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    lifespan=lifespan
+    lifespan=lifespan,
+    servers=[{"url": "/"}],
 )
+
 
 # CORS 설정
 app.add_middleware(
@@ -45,5 +46,5 @@ def root():
     return {"message": "Finnect AI API 서비스입니다."}
 
 # python -m app.main
-if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+# if __name__ == "__main__":
+#     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
