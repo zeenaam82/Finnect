@@ -1,14 +1,14 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from io import BytesIO
-import json
 import logging
-
-from app.services.data_service import predict_image, process_csv
-from app.services.csv_convert import convert_xlsx_to_csv
-from app.integrations.django_bridge import get_upload_record_model
-from app.core.redis import redis_client
+import json
 from asgiref.sync import sync_to_async
+
+from app.core.redis import redis_client_async
+from app.tasks.csv_tasks import process_csv_task
+from app.integrations.django_bridge import get_upload_record_model
+from app.services.image_service import predict_image
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 UploadRecord = get_upload_record_model()
@@ -23,15 +23,9 @@ class ImageUploadResponse(BaseModel):
     file_size: int
     prediction: dict | None = None
 
-class CSVUploadResponse(BaseModel):
-    filename: str
-    uploaded_at: str
-    file_size: int
-    statistics: dict | None = None
-
-# ----------------------------
-# Image Upload Endpoint
-# ----------------------------
+# -------------------
+# 이미지 업로드 (동기)
+# -------------------
 @router.post("/image", response_model=ImageUploadResponse)
 async def upload_image(file: UploadFile = File(...)):
     try:
@@ -47,7 +41,7 @@ async def upload_image(file: UploadFile = File(...)):
         )
 
         # Redis 캐싱 (1시간)
-        await redis_client.set(
+        await redis_client_async.set(
             f"image:{record.id}",
             json.dumps(result),
             ex=3600
@@ -65,47 +59,41 @@ async def upload_image(file: UploadFile = File(...)):
         logger.exception("이미지 업로드 처리 오류")
         raise HTTPException(status_code=500, detail=str(e))
 
-# ----------------------------
-# CSV Upload Endpoint
-# ----------------------------
-@router.post("/csv", response_model=CSVUploadResponse)
-async def upload_csv(file: UploadFile = File(...)):
+# -------------------
+# CSV 업로드 (Celery 비동기)
+# -------------------
+@router.post("/csv")
+def upload_csv(file: UploadFile = File(...)):
     try:
-        filename = file.filename.lower()
-        file_bytes = await file.read()
-        file_obj = BytesIO(file_bytes)
-
-        if filename.endswith(".xlsx"):
-            file_obj.seek(0)
-            csv_file = convert_xlsx_to_csv(file_obj)
-            stats = process_csv(csv_file)
-        elif filename.endswith(".csv"):
-            file_obj.seek(0)
-            stats = process_csv(file_obj)
-        else:
-            raise HTTPException(status_code=400, detail="지원하지 않는 파일 형식")
-
-        # JSON 직렬화
-        stats_json = json.dumps(stats)
-
-        # sync_to_async로 ORM 호출
-        record = await sync_to_async(UploadRecord.objects.create)(
+        file_bytes = file.file.read()
+        record = UploadRecord.objects.create(
             filename=file.filename,
             file_size=len(file_bytes),
-            statistics=stats_json
+            status="PENDING"
         )
 
-        # Redis에 컬럼명 기준으로 저장 (1시간)
-        for col, value in stats.items():
-            await redis_client.set(f"csv_col:{col}", value, ex=3600)
-
+        # Celery task 비동기 실행
+        process_csv_task.apply_async((file_bytes, file.filename, record.id))
         logger.info("CSV 업로드 완료")
-        return {
-            "filename": record.filename,
-            "uploaded_at": record.uploaded_at.isoformat(),
-            "file_size": record.file_size,
-            "statistics": stats
-        }
-
+        return {"record_id": record.id, "status": record.status}
     except Exception as e:
+        logger.exception("CSV 업로드 처리 오류")
         raise HTTPException(status_code=500, detail=str(e))
+
+# -------------------
+# CSV 기록 조회
+# -------------------
+@router.get("/csv_record/{record_id}")
+def get_csv_record(record_id: int):
+    try:
+        record = UploadRecord.objects.get(id=record_id)
+        logger.info("CSV 기록 조회 결과")
+        return {
+            "record_id": record.id,
+            "filename": record.filename,
+            "file_size": record.file_size,
+            "status": record.status,
+            "statistics": record.statistics
+        }
+    except UploadRecord.DoesNotExist:
+        raise HTTPException(status_code=404, detail="CSV record not found")

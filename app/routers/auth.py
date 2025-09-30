@@ -12,17 +12,18 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     # Django ORM으로 사용자 조회
     try:
         user = User.objects.get(email=form_data.username)
+        print(User.objects.count())
     except User.DoesNotExist:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password"
+            detail="Incorrect username"
         )
 
     # 비밀번호 검증
     if not user.check_password(form_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password"
+            detail="Incorrect password"
         )
 
     # JWT 토큰 생성

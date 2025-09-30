@@ -1,12 +1,30 @@
-import redis.asyncio as redis
+import os
+import redis
+import redis.asyncio as aioredis
 
-# 전역 Redis 클라이언트
-redis_client = redis.Redis(
-    host="localhost",   
-    port=6379,
-    db=0,
-    decode_responses=True 
+# -----------------------------
+# 환경변수
+# -----------------------------
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB   = int(os.getenv("REDIS_DB", 0))
+
+# -----------------------------
+# 동기 Redis (Celery / 동기 코드용)
+# -----------------------------
+redis_client_sync = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    decode_responses=True
 )
 
-# docker exec -it redis redis-cli
-# docker run -d -p 6379:6379 redis
+# -----------------------------
+# 비동기 Redis (FastAPI / async 코드용)
+# -----------------------------
+redis_client_async = aioredis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    decode_responses=True
+)

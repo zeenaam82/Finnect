@@ -5,7 +5,7 @@ import json
 from asgiref.sync import sync_to_async
 
 from app.integrations.django_bridge import get_upload_record_model, get_intent_response_async, get_faqs_async
-from app.core.redis import redis_client
+from app.core.redis import redis_client_async
 
 logger = logging.getLogger("chatbot")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -17,13 +17,13 @@ UploadRecord = get_upload_record_model()
 # Redis helper
 # ----------------------------
 async def _cache_get(key: str) -> Optional[str]:
-    value = await redis_client.get(key)
+    value = await redis_client_async.get(key)
     if value is None:
         return None
     return value.decode() if isinstance(value, bytes) else value
 
 async def _cache_set(key: str, value: str, ex: int = 3600):
-    await redis_client.set(key, value, ex=ex)
+    await redis_client_async.set(key, value, ex=ex)
 
 
 # ----------------------------

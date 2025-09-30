@@ -14,6 +14,17 @@ class UploadRecord(models.Model):
     confidence = models.FloatField(null=True, blank=True)               # 이미지 신뢰도
     statistics = JSONField(null=True, blank=True)                        # CSV 통계 결과
 
+    # CSV 결과
+    statistics = JSONField(null=True, blank=True)  # CSV 통계 결과
+
+    # 공용 처리 상태
+    STATUS_CHOICES = [
+        ("PENDING", "Pending"),
+        ("SUCCESS", "Success"),
+        ("FAILURE", "Failure"),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
+
     def __str__(self):
         return f"{self.filename} ({self.uploaded_at})"
 

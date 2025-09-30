@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.routers import auth, upload, chatbot, admin_plotly, admin_dashboard
-from app.services.data_service import initialize_onnx
+from app.services.image_service import initialize_onnx
 from dotenv import load_dotenv
 import uvicorn
 

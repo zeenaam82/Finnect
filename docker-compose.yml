@@ -1,11 +1,11 @@
 version: "3.9"
-
 services:
   web:
     build: .
     container_name: finnect_web
     volumes:
       - ./tmp:/data/tmp
+    working_dir: /app
     ports:
       - "8000:8000" 
     env_file:
@@ -15,19 +15,29 @@ services:
       - redis
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers
 
-  # django:
-  #   build: .
-  #   container_name: finnect_django
-  #   volumes:
-  #     - ./backend:/app
-  #   ports:
-  #     - "8001:8000"
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     - db
-  #     - redis
-  #   entrypoint: ["sh", "/app/entrypoint.sh"]
+  worker:
+    build: .
+    container_name: celery_worker
+    depends_on:
+      - redis
+      - db
+    env_file:
+      - .env
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info
+
+  django:
+    build: .
+    container_name: finnect_django
+    # volumes:
+    #   - ./backend:/app
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    entrypoint: ["bash", "/app/entrypoint.sh"]
 
   db:
     image: postgres:15
