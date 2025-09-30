@@ -8,7 +8,7 @@ from asgiref.sync import sync_to_async
 from app.core.redis import redis_client_async
 from app.tasks.csv_tasks import process_csv_task
 from app.integrations.django_bridge import get_upload_record_model
-from app.services.image_service import predict_image
+from app.services.data_service import predict_image
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 UploadRecord = get_upload_record_model()

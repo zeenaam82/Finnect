@@ -1,3 +1,6 @@
+import tempfile
+import dask
+import pandas as pd
 import numpy as np
 from io import BytesIO
 from PIL import Image
@@ -5,6 +8,7 @@ from fastapi import HTTPException
 import os
 import logging
 from typing import Optional
+from app.core.metrics import METRICS
 
 logger = logging.getLogger(__name__)
 
@@ -75,3 +79,46 @@ def predict_image(file: BytesIO) -> dict:
         return {"prediction": label_map.get(idx, "unknown"), "confidence": confidence}
     except Exception as e:
         return {"prediction": "error", "confidence": 0.0, "error": str(e)}
+
+# ----------------------------
+# CSV 처리
+# ----------------------------
+_latest_csv_stats = {}
+
+def process_csv(file: BytesIO) -> dict:
+    global _latest_csv_stats
+    tmp = None
+    try:
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
+        tmp.write(file.read())
+        tmp.flush()
+        tmp.close()
+
+        df = pd.read_csv(tmp.name, encoding="ISO-8859-1", on_bad_lines="skip", dtype={"InvoiceNo": "object"})
+
+        # METRICS 기반 계산
+        metrics = {k: f(df) for k, f in METRICS.items()}
+        # Dask compute
+        keys, tasks = zip(*[(k, v) for k, v in metrics.items() if v is not None])
+        results = dask.compute(*tasks)
+
+        stats = {}
+        for k, v in zip(keys, results):
+            if isinstance(v, (np.integer, np.int64)):
+                stats[k] = int(v)
+            elif isinstance(v, (np.floating, np.float64)):
+                stats[k] = float(v)
+            else:
+                stats[k] = v
+
+        _latest_csv_stats = stats
+        return stats
+    except Exception as e:
+        logger.exception("Upload CSV error")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    finally:
+        if tmp:
+            os.unlink(tmp.name)
+
+def get_latest_csv_stats() -> dict:
+    return _latest_csv_stats if _latest_csv_stats else {}
