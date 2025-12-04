@@ -138,11 +138,18 @@ CSV
 ---
 
 ## 참고
-> FastAPI Swagger: http://13.124.90.238:8000/docs  
+> FastAPI Swagger: http://13.124.90.238:8000/docs
+>   
 > Django Admin: http://13.124.90.238:8001/admin (메모리 부족으로 EC2 무료 프리티어 환경에서는 실행되지 않음)  
+> 
 > 현재 서비스는 무료 프리티어 환경에서 운영 중이며, 다수 동시 접속 또는 대용량 요청 시 지연이나 오류가 발생할 수 있음.
+> 
 > 로컬 개발용 docker-compose를 그대로 사용했으며, 배포용으로는 보안·네트워크 설정을 추가할 수 있음.
+> 
 > Celery worker를 통해 CSV 업로드 처리 속도가 개선됨. (EC2 무료 프리티어에서는 메모리 부족으로 Celery worker 미실행)
+> 
 > 현재 모델 학습 및 Celery 비동기 처리 과정은 TensorFlow와 S3 파일 다운로드로 인해 **상당한 메모리(RAM)를 요구**합니다.
+> 
 > **EC2 무료 프리티어 환경(1GB RAM)**에서는 Celery Worker가 메모리 부족으로 인해 **`SIGKILL` 오류로 강제 종료**되므로, 개선된 시스템을 실행할 수 없습니다.
+> 
 > 로컬 환경에서 실행하는 경우, `docker-compose.yml` 파일에서 `worker` 서비스에 **최소 8GB 이상(`8192m`)**의 메모리 제한(`deploy.resources.limits.memory`)을 명시적으로 설정해야 안정적으로 동작합니다.
