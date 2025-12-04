@@ -100,24 +100,17 @@ FastAPI는 API 서버 및 JWT 인증을 담당하며, Django는 업로드 기록
     docker-compose up -d
     ```
 
-2.  **Django 마이그레이션 (API 컨테이너 내부)**
+2.  **마이그레이션 및 초기화 스크립트 실행**
     ```bash
-    docker exec -it finnect_api python backend/manage.py migrate
-    ```
+    # 마이그레이션
+    docker exec -it finnect_django bash
+    cd backend
+    python manage.py migrate
 
-3.  **초기화 스크립트 실행 (Worker 컨테이너 내부)**
-    * Worker 컨테이너에 접속하여 초기 데이터 설정 및 모델 학습을 실행합니다.
-    ```bash
-    # Worker 컨테이너 접속
-    docker exec -it celery_worker /bin/bash
-
-    # 1. 인텐트 및 테스트 유저 생성 (관리자 계정 포함)
+    # 인텐트 및 테스트 유저 생성
+    cd ..
     python scripts/init_intents.py
     python scripts/create_test_users.py
-
-    # 2. AI 모델 학습 및 ONNX 변환 (S3 데이터 사용)
-    # Warning: 이 스크립트는 S3 데이터를 다운로드하므로 시간이 소요됩니다.
-    python scripts/train_and_convert.py
 
     # 컨테이너에서 나옴
     exit
