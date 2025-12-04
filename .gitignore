@@ -51,3 +51,6 @@ mvtec_ad/
 *.egg-info/
 dist/
 build/
+
+# script
+scripts/train_and_convert.py
