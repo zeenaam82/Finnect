@@ -6,7 +6,8 @@ celery_app = Celery(
     broker=os.getenv("CELERY_BROKER_URL"),
     backend=os.getenv("CELERY_RESULT_BACKEND"),
     include=[
-        "app.tasks.csv_tasks"
+        "app.tasks.csv_tasks",
+        "app.tasks.model_tasks"
     ],
 )
 

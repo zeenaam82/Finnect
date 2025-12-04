@@ -52,5 +52,8 @@ mvtec_ad/
 dist/
 build/
 
+# Migrations
+backend/*/migrations/
+
 # script
 scripts/train_and_convert.py

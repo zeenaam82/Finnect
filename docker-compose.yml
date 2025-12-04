@@ -18,6 +18,12 @@ services:
   worker:
     build: .
     container_name: celery_worker
+    deploy:
+      resources:
+        limits:
+          memory: 8192m
+        reservations:
+          memory: 4096m
     depends_on:
       - redis
       - db

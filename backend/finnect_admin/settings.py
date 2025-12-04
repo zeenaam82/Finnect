@@ -11,14 +11,14 @@ load_dotenv(BASE_DIR / ".env")
 # --------------------------
 # 보안/디버그
 # --------------------------
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "change-me")
-DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
-ALLOWED_HOSTS = ["*"]
+SECRET_KEY=os.environ.get("DJANGO_SECRET_KEY", "change-me")
+DEBUG=os.environ.get("DJANGO_DEBUG", "False") == "True"
+ALLOWED_HOSTS=["*"]
 
 # --------------------------
 # 앱 등록
 # --------------------------
-INSTALLED_APPS = [
+INSTALLED_APPS=[
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -31,7 +31,7 @@ INSTALLED_APPS = [
 # --------------------------
 # 미들웨어
 # --------------------------
-MIDDLEWARE = [
+MIDDLEWARE=[
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -49,14 +49,17 @@ WSGI_APPLICATION = "finnect_admin.wsgi.application"
 # --------------------------
 # 데이터베이스
 # --------------------------
-DATABASES = {
+DATABASES={
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB"),
-        "USER": os.environ.get("POSTGRES_USER"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD"),
-        "HOST": os.environ.get("POSTGRES_HOST", "db"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "NAME": str(os.environ.get("POSTGRES_DB")),
+        "USER": str(os.environ.get("POSTGRES_USER")),
+        "PASSWORD": str(os.environ.get("POSTGRES_PASSWORD")),
+        "HOST": str(os.environ.get("POSTGRES_HOST", "db")),
+        "PORT": str(os.environ.get("POSTGRES_PORT", "5432")),
+        "OPTIONS": {
+            "client_encoding": "UTF8",
+        },
     }
 }
 
@@ -66,21 +69,21 @@ DATABASES = {
 # --------------------------
 # 국제화
 # --------------------------
-LANGUAGE_CODE = "ko-kr"
-TIME_ZONE = "Asia/Seoul"
-USE_I18N = True
-USE_TZ = True
+LANGUAGE_CODE="ko-kr"
+TIME_ZONE="Asia/Seoul"
+USE_I18N=True
+USE_TZ=True
 
 # --------------------------
 # 정적 파일
 # --------------------------
-STATIC_URL = "static/"
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+STATIC_URL="static/"
+DEFAULT_AUTO_FIELD="django.db.models.BigAutoField"
 
 # --------------------------
 # 템플릿
 # --------------------------
-TEMPLATES = [
+TEMPLATES=[
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [],  # 커스텀 템플릿 디렉토리

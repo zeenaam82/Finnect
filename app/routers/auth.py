@@ -9,10 +9,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/token", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    print(f"Have User: {User.objects.count()}")
     # Django ORM으로 사용자 조회
     try:
         user = User.objects.get(email=form_data.username)
-        print(User.objects.count())
     except User.DoesNotExist:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

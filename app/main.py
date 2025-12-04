@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from app.routers import auth, upload, chatbot, admin_plotly, admin_dashboard
+from app.routers import auth, upload, chatbot, admin_plotly, admin_dashboard, train
 from app.services.data_service import initialize_onnx
 from dotenv import load_dotenv
 import uvicorn
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(upload.router)
 app.include_router(chatbot.router)
+app.include_router(train.router)
 app.include_router(admin_plotly.router)
 app.include_router(admin_dashboard.router)
 

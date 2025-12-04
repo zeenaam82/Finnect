@@ -8,7 +8,9 @@ from fastapi import HTTPException
 import os
 import logging
 from typing import Optional
+
 from app.core.metrics import METRICS
+from app.core.s3_manager import s3_manager
 
 logger = logging.getLogger(__name__)
 
@@ -24,34 +26,59 @@ BASE_MODEL_DIR = os.path.abspath("app/data")
 ONNX_MODEL_PATH: Optional[str] = None
 session = None
 
-def initialize_onnx(model_dir: Optional[str] = None):
+def initialize_onnx(category: str = 'bottle'):
     global ONNX_MODEL_PATH, session
-    dir_to_check = model_dir or BASE_MODEL_DIR
+    dir_to_check = BASE_MODEL_DIR
+    local_temp_path = None # 임시 파일 경로 초기화
 
     if ort is None:
         logger.warning("onnxruntime 패키지 없음, 이미지 추론 비활성화")
         session = None
         return
+    
+    # S3에서 최신 모델 로드
+    S3_MODEL_KEY = f"models/{category}_latest.onnx"
 
-    if not os.path.isdir(dir_to_check):
-        logger.warning(f"모델 디렉토리 없음: {dir_to_check}")
-        session = None
-        return
-
-    onnx_files = [f for f in os.listdir(dir_to_check) if f.endswith(".onnx")]
-    if not onnx_files:
-        logger.warning("ONNX 모델 파일 없음, 추론 비활성화")
-        session = None
-        return
-
-    latest = max(onnx_files, key=lambda f: os.path.getctime(os.path.join(dir_to_check, f)))
-    ONNX_MODEL_PATH = os.path.join(dir_to_check, latest)
     try:
+        # 임시 파일 생성
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".onnx") as tmp:
+            local_temp_path = tmp.name
+
+        # S3에서 파일 다운로드
+        s3_manager.download_file(S3_MODEL_KEY, local_temp_path)
+        
+        # 세션 생성
+        ONNX_MODEL_PATH = local_temp_path
         session = ort.InferenceSession(ONNX_MODEL_PATH)
-        logger.info(f"사용 ONNX 모델: {ONNX_MODEL_PATH}")
+        logger.info(f"사용 ONNX 모델 (S3 로드): {S3_MODEL_KEY}")
+        return
+
     except Exception:
-        logger.exception("ONNX InferenceSession 생성 실패")
-        session = None
+        logger.warning(f"S3에서 ONNX 모델 로드 실패: {S3_MODEL_KEY} (로컬 탐색 시도)")
+        session = None # 세션 초기화
+
+        # 로컬 디렉터리에서 최신 모델 파일 탐색
+        if not os.path.isdir(dir_to_check):
+            logger.warning(f"모델 디렉토리 없음: {dir_to_check}")
+            return
+
+        onnx_files = [f for f in os.listdir(dir_to_check) if f.endswith(".onnx")]
+        if not onnx_files:
+            logger.warning("ONNX 모델 파일 없음, 추론 비활성화")
+            return
+
+        latest = max(onnx_files, key=lambda f: os.path.getctime(os.path.join(dir_to_check, f)))
+        ONNX_MODEL_PATH = os.path.join(dir_to_check, latest)
+        try:
+            session = ort.InferenceSession(ONNX_MODEL_PATH)
+            logger.info(f"사용 ONNX 모델 (로컬 로드): {ONNX_MODEL_PATH}")
+        except Exception:
+            logger.exception("ONNX InferenceSession 생성 실패 (로컬)")
+        
+    finally:
+        # 다운로드된 임시 파일은 세션 로드 후 즉시 삭제
+        if local_temp_path and os.path.exists(local_temp_path):
+             os.unlink(local_temp_path)
 
 # ----------------------------
 # 이미지 전처리 및 예측
